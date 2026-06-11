@@ -1,9 +1,16 @@
-"""Moderation: classify messages and report genuinely problematic ones.
+"""Moderation: classify messages, take a graduated action, and log it.
 
-This never auto-bans or deletes. It surfaces flagged messages to a mod-only
-channel with the model's reasoning, so a human always makes the final call.
-Disabled unless MODERATION_ENABLED=true and MOD_LOG_CHANNEL_ID is set.
+Actions, by severity (it never bans):
+  - low / medium -> warn the user (DM)
+  - high         -> mute the user (Discord timeout) + warn
+
+Every action is also reported to a mod-only channel with the model's reasoning,
+so a human can review and reverse it. Staff (anyone who can manage messages) are
+never auto-actioned, only logged. Disabled unless MODERATION_ENABLED=true and
+MOD_LOG_CHANNEL_ID is set.
 """
+
+from datetime import timedelta
 
 import discord
 from discord.ext import commands
@@ -40,9 +47,52 @@ class Moderation(commands.Cog):
             return
 
         if result.get("flagged"):
-            await self._report(message, result)
+            await self._handle(message, result)
 
-    async def _report(self, message: discord.Message, result: dict) -> None:
+    async def _handle(self, message: discord.Message, result: dict) -> None:
+        severity = result.get("severity", "low")
+
+        # Never auto-action staff — only log for their review.
+        perms = getattr(message.author, "guild_permissions", None)
+        if perms is not None and perms.manage_messages:
+            action, detail = "none", "author is staff — logged only"
+        elif severity == "high":
+            action, detail = await self._mute(message, result)
+        else:
+            action, detail = await self._warn(message, result)
+
+        await self._log(message, result, action, detail)
+
+    async def _warn(self, message: discord.Message, result: dict) -> tuple[str, str]:
+        reason = result.get("reason") or "Your message may violate the server rules."
+        try:
+            await message.author.send(
+                f"⚠️ Heads up from **{message.guild.name}**: a recent message of "
+                f"yours was flagged.\n> {reason}\nPlease review the server rules."
+            )
+            return "warned", "warning DM sent"
+        except discord.Forbidden:
+            return "warned", "warning DM failed (user has DMs closed)"
+
+    async def _mute(self, message: discord.Message, result: dict) -> tuple[str, str]:
+        reason = result.get("reason") or "Flagged content"
+        try:
+            await message.author.timeout(
+                timedelta(minutes=config.MUTE_MINUTES),
+                reason=f"Auto-mute: {reason}",
+            )
+        except discord.Forbidden:
+            return "mute failed", "missing 'Timeout Members' permission or role too low"
+        except discord.HTTPException as exc:
+            return "mute failed", str(exc)
+
+        # Also try to let the user know why they were muted.
+        await self._warn(message, result)
+        return "muted", f"{config.MUTE_MINUTES} min timeout"
+
+    async def _log(
+        self, message: discord.Message, result: dict, action: str, detail: str
+    ) -> None:
         channel = self.bot.get_channel(config.MOD_LOG_CHANNEL_ID)
         if channel is None:
             print(
@@ -53,7 +103,7 @@ class Moderation(commands.Cog):
 
         severity = result.get("severity", "low")
         embed = discord.Embed(
-            title="⚠️ Message flagged for review",
+            title="⚠️ Message flagged",
             description=message.content[:1024],
             color=SEVERITY_COLORS.get(severity, 0x95A5A6),
         )
@@ -61,6 +111,7 @@ class Moderation(commands.Cog):
         embed.add_field(name="Channel", value=message.channel.mention, inline=True)
         embed.add_field(name="Category", value=result.get("category", "n/a"), inline=True)
         embed.add_field(name="Severity", value=severity, inline=True)
+        embed.add_field(name="Action taken", value=f"{action} ({detail})", inline=True)
         embed.add_field(
             name="Reason", value=(result.get("reason") or "n/a")[:1024], inline=False
         )

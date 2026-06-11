@@ -111,6 +111,14 @@ class Database:
         )
         await self._db.commit()
 
+    async def purge_older_than(self, cutoff_ts: int) -> int:
+        """Delete stored messages with created_at older than cutoff_ts (unix seconds)."""
+        cur = await self._db.execute(
+            "DELETE FROM messages WHERE created_at < ?", (cutoff_ts,)
+        )
+        await self._db.commit()
+        return cur.rowcount
+
     async def search(self, guild_id, query_text: str, limit: int = 12):
         """Return the most relevant stored messages for a query, newest-rank first."""
         match = build_match_query(query_text)

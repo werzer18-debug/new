@@ -1,10 +1,13 @@
 """Memory features: index messages and answer questions about server history."""
 
+from datetime import datetime, timedelta, timezone
+
 import discord
 from discord import app_commands
-from discord.ext import commands
+from discord.ext import commands, tasks
 
 import claude_client
+import config
 
 MAX_DISCORD_LEN = 1900  # Discord hard limit is 2000; leave headroom
 
@@ -12,6 +15,29 @@ MAX_DISCORD_LEN = 1900  # Discord hard limit is 2000; leave headroom
 class Memory(commands.Cog):
     def __init__(self, bot: commands.Bot):
         self.bot = bot
+        self.purge_old_messages.start()
+
+    def cog_unload(self) -> None:
+        self.purge_old_messages.cancel()
+
+    @tasks.loop(hours=6)
+    async def purge_old_messages(self) -> None:
+        """Delete stored messages older than the retention window.
+
+        Runs on startup (cleaning up any old messages already saved) and every
+        6 hours thereafter.
+        """
+        cutoff = datetime.now(timezone.utc) - timedelta(days=config.RETENTION_DAYS)
+        deleted = await self.bot.db.purge_older_than(int(cutoff.timestamp()))
+        if deleted:
+            print(
+                f"[retention] purged {deleted} message(s) older than "
+                f"{config.RETENTION_DAYS} day(s)"
+            )
+
+    @purge_old_messages.before_loop
+    async def _before_purge(self) -> None:
+        await self.bot.wait_until_ready()
 
     @commands.Cog.listener()
     async def on_message(self, message: discord.Message) -> None:

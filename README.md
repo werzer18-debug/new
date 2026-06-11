@@ -5,10 +5,18 @@ A Discord bot with two genuinely useful, AI-powered features built on one engine
 - **🧠 Memory — "ask the server anything."** The bot quietly indexes message
   history and answers natural-language questions about it
   (`/ask what did we decide about the meeting time?`).
-- **🛡️ Moderation — smart flagging.** Optionally, it reads messages and flags
-  *genuinely* problematic ones (harassment, threats, scams) to a mod-only
-  channel **with the reasoning attached** — a human always makes the final call.
-  No auto-bans, no dumb word filters.
+- **🛡️ Moderation — smart flagging + graduated action.** Optionally, it reads
+  messages, flags *genuinely* problematic ones (harassment, threats, scams), and
+  takes a measured action — **it never bans**:
+  - low / medium severity → **warns** the user (DM)
+  - high severity → **mutes** the user via Discord timeout + warns
+  - staff are never auto-actioned, only logged
+
+  Every action is reported to a mod-only channel **with the reasoning attached**,
+  so a human can review and reverse it. No dumb word filters.
+
+Stored messages are **automatically deleted after 3 days** (configurable), so the
+bot keeps only a recent rolling window of history.
 
 It's fully self-contained: message history lives in a local **SQLite** database
 with full-text search (FTS5), so there's **no external vector database or
@@ -46,8 +54,10 @@ pip install -r requirements.txt
 3. Under **Privileged Gateway Intents**, enable **Message Content Intent**
    (the bot needs this to read messages).
 4. Under **OAuth2 → URL Generator**, select the `bot` and
-   `applications.commands` scopes, give it **Send Messages** + **Read Message
-   History** permissions, then open the generated URL to invite it to your server.
+   `applications.commands` scopes. Give it **Send Messages** + **Read Message
+   History**, and — if you'll use moderation — **Timeout Members** (so it can
+   mute). Then open the generated URL to invite it to your server. The bot's
+   role must sit **above** the roles of members you want it to be able to mute.
 
 ### 3. Get a Claude API key
 
@@ -93,13 +103,15 @@ message, which adds cost and can hit rate limits on busy servers. To turn it on:
    MODERATION_ENABLED=true
    MOD_LOG_CHANNEL_ID=123456789012345678
    ```
-4. For high-volume servers, switch the classifier to a cheaper, faster model:
+4. (Optional) tune the mute duration and model:
    ```env
-   MODERATION_MODEL=claude-haiku-4-5
+   MUTE_MINUTES=60
+   MODERATION_MODEL=claude-haiku-4-5   # cheaper/faster for high-volume servers
    ```
 
-The bot only ever **reports** to the mod channel — it never deletes messages or
-bans users. Keep a human in the loop.
+The bot **warns** (low/medium) or **mutes via Discord timeout** (high) — it never
+bans, and it never auto-actions staff. Every action is logged to the mod channel
+for review. Keep a human in the loop.
 
 ---
 
@@ -109,6 +121,8 @@ This bot stores message history, so handle it responsibly:
 
 - Secrets live in `.env`, which is **gitignored** and never committed.
 - The SQLite database (`*.db`) is also gitignored.
+- Stored messages are **auto-deleted after `RETENTION_DAYS` (default 3)** — the
+  bot sweeps on startup and every 6 hours, so it only ever holds a recent window.
 - Users can run `/forget_me` to delete their data and opt out of indexing.
 - Tell your community the bot is active and what it stores.
 
