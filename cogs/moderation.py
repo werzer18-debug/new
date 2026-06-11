@@ -85,7 +85,13 @@ class Moderation(commands.Cog):
 
     async def _mute(self, message: discord.Message, result: dict) -> tuple[str, str]:
         reason = result.get("reason") or "Flagged content"
-        minutes = min(config.MUTE_MINUTES, MAX_MUTE_MINUTES)  # never exceed 3 days
+        severity = result.get("severity", "medium")
+        # Scale the timeout by severity; fall back to the medium tier for an
+        # unexpected value, and never exceed the 3-day cap.
+        minutes = config.MUTE_MINUTES_BY_SEVERITY.get(
+            severity, config.MUTE_MINUTES_BY_SEVERITY["medium"]
+        )
+        minutes = min(minutes, MAX_MUTE_MINUTES)
         try:
             await message.author.timeout(
                 timedelta(minutes=minutes),

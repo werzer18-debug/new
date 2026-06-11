@@ -27,8 +27,13 @@ MODERATION_ENABLED = os.environ.get("MODERATION_ENABLED", "false").lower() == "t
 _mod_channel = os.environ.get("MOD_LOG_CHANNEL_ID")
 MOD_LOG_CHANNEL_ID = int(_mod_channel) if _mod_channel else None
 
-# How long (in minutes) to mute a user via Discord timeout on a high-severity flag.
-MUTE_MINUTES = int(os.environ.get("MUTE_MINUTES", "60"))
+# Mute duration (Discord timeout, in minutes) scaled by the flag's severity.
+# All values are capped at 3 days (4320 min) by the moderation cog.
+MUTE_MINUTES_BY_SEVERITY = {
+    "low": int(os.environ.get("MUTE_MINUTES_LOW", "30")),       # 30 minutes
+    "medium": int(os.environ.get("MUTE_MINUTES_MEDIUM", "360")),  # 6 hours
+    "high": int(os.environ.get("MUTE_MINUTES_HIGH", "4320")),    # 3 days
+}
 
 # Data retention: automatically delete stored messages older than this many days.
 RETENTION_DAYS = int(os.environ.get("RETENTION_DAYS", "3"))

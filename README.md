@@ -9,7 +9,8 @@ A Discord bot with two genuinely useful, AI-powered features built on one engine
   messages, flags *genuinely* problematic ones, and takes a measured action —
   **it never bans**:
   - **threats or abuse** (threats, harassment, hate, CSAM) → **mutes** the user
-    via Discord timeout (capped at **3 days**) + warns
+    via Discord timeout, with the length **scaled by severity** (low ≈ 30 min,
+    medium ≈ 6 h, high ≈ 3 days), capped at **3 days** + warns
   - other flags (spam/scams, mild toxicity) → **warns** the user (DM)
   - staff are never auto-actioned, only logged
 
@@ -104,9 +105,11 @@ message, which adds cost and can hit rate limits on busy servers. To turn it on:
    MODERATION_ENABLED=true
    MOD_LOG_CHANNEL_ID=123456789012345678
    ```
-4. (Optional) tune the mute duration and model:
+4. (Optional) tune the per-severity mute durations and model:
    ```env
-   MUTE_MINUTES=60                     # capped at 3 days (4320) no matter what
+   MUTE_MINUTES_LOW=30                 # each is capped at 3 days (4320) max
+   MUTE_MINUTES_MEDIUM=360
+   MUTE_MINUTES_HIGH=4320
    MODERATION_MODEL=claude-haiku-4-5   # cheaper/faster for high-volume servers
    ```
 
