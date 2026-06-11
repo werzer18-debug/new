@@ -80,6 +80,50 @@ file is gitignored, so your secrets never get committed.
 python bot.py
 ```
 
+When you see `Logged in as ...` and `Slash commands synced`, the bot is live in
+every server it's been invited to. Type `/` in a channel and you should see
+`/ask`. (Slash commands can take a minute to appear the first time.)
+
+---
+
+## Deploying (keeping it always-on)
+
+The bot must run on a machine that stays on. Pick one:
+
+### Option A — your own computer (fastest for testing)
+Just run `python bot.py` as above. The bot is online only while that process
+runs and your machine is awake. Great for a first test; not for 24/7.
+
+### Option B — Docker (any server / VPS)
+A `Dockerfile` is included. Pass your secrets as environment variables — never
+bake them into the image:
+
+```bash
+docker build -t server-memory-bot .
+docker run -d --name memory-bot --restart unless-stopped \
+  -e DISCORD_TOKEN=xxxxx \
+  -e ANTHROPIC_API_KEY=sk-ant-xxxxx \
+  -e MODERATION_ENABLED=false \
+  -v "$(pwd)/data":/app/data \
+  -e DATABASE_PATH=/app/data/server_memory.db \
+  server-memory-bot
+```
+
+The `-v` volume keeps the SQLite database across restarts.
+
+### Option C — a managed host (always-on, no server to manage)
+Railway, Render, Fly.io, or similar all work. General steps:
+1. Push this repo to GitHub (already done on your branch).
+2. Create a new service from the repo. The host auto-detects the `Dockerfile`.
+3. Set `DISCORD_TOKEN` and `ANTHROPIC_API_KEY` as **environment variables /
+   secrets** in the host's dashboard (not in code).
+4. Deploy. Check the logs for `Logged in as ...`.
+
+> Note: on hosts with **ephemeral disks** (e.g. Railway without a volume), the
+> SQLite file resets on redeploy. That's fine here — the bot only keeps 3 days
+> of history anyway — but attach a persistent volume if you want it to survive
+> restarts.
+
 ---
 
 ## Commands
