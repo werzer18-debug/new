@@ -1,0 +1,14 @@
+# Secrets — never commit these
+.env
+
+# Local database / message store
+*.db
+*.db-journal
+*.db-wal
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+.python-version
