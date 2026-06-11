@@ -6,10 +6,11 @@ A Discord bot with two genuinely useful, AI-powered features built on one engine
   history and answers natural-language questions about it
   (`/ask what did we decide about the meeting time?`).
 - **🛡️ Moderation — smart flagging + graduated action.** Optionally, it reads
-  messages, flags *genuinely* problematic ones (harassment, threats, scams), and
-  takes a measured action — **it never bans**:
-  - low / medium severity → **warns** the user (DM)
-  - high severity → **mutes** the user via Discord timeout + warns
+  messages, flags *genuinely* problematic ones, and takes a measured action —
+  **it never bans**:
+  - **threats or abuse** (threats, harassment, hate, CSAM) → **mutes** the user
+    via Discord timeout (capped at **3 days**) + warns
+  - other flags (spam/scams, mild toxicity) → **warns** the user (DM)
   - staff are never auto-actioned, only logged
 
   Every action is reported to a mod-only channel **with the reasoning attached**,
@@ -105,13 +106,14 @@ message, which adds cost and can hit rate limits on busy servers. To turn it on:
    ```
 4. (Optional) tune the mute duration and model:
    ```env
-   MUTE_MINUTES=60
+   MUTE_MINUTES=60                     # capped at 3 days (4320) no matter what
    MODERATION_MODEL=claude-haiku-4-5   # cheaper/faster for high-volume servers
    ```
 
-The bot **warns** (low/medium) or **mutes via Discord timeout** (high) — it never
-bans, and it never auto-actions staff. Every action is logged to the mod channel
-for review. Keep a human in the loop.
+The bot **mutes** users flagged for threats or abuse (Discord timeout, max 3
+days) and **warns** users for lesser flags — it never bans, and it never
+auto-actions staff. Every action is logged to the mod channel for review. Keep a
+human in the loop.
 
 ---
 

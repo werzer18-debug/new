@@ -24,6 +24,13 @@ SEVERITY_COLORS = {
     "high": 0xE74C3C,    # red
 }
 
+# Categories that warrant a mute — threats and abuse. Anything else that gets
+# flagged (spam/scams, mild toxicity) is warned instead of muted.
+MUTE_CATEGORIES = {"threat", "harassment", "hate", "csam"}
+
+# Discord's own timeout limit is 28 days; we cap mutes at 3 days by policy.
+MAX_MUTE_MINUTES = 3 * 24 * 60  # 4320
+
 MIN_LENGTH = 4  # skip trivially short messages to save API calls
 
 
@@ -50,15 +57,17 @@ class Moderation(commands.Cog):
             await self._handle(message, result)
 
     async def _handle(self, message: discord.Message, result: dict) -> None:
-        severity = result.get("severity", "low")
+        category = result.get("category", "none")
 
         # Never auto-action staff — only log for their review.
         perms = getattr(message.author, "guild_permissions", None)
         if perms is not None and perms.manage_messages:
             action, detail = "none", "author is staff — logged only"
-        elif severity == "high":
+        elif category in MUTE_CATEGORIES:
+            # Threats or abuse -> mute.
             action, detail = await self._mute(message, result)
         else:
+            # Everything else flagged (spam, mild toxicity) -> warn.
             action, detail = await self._warn(message, result)
 
         await self._log(message, result, action, detail)
@@ -76,9 +85,10 @@ class Moderation(commands.Cog):
 
     async def _mute(self, message: discord.Message, result: dict) -> tuple[str, str]:
         reason = result.get("reason") or "Flagged content"
+        minutes = min(config.MUTE_MINUTES, MAX_MUTE_MINUTES)  # never exceed 3 days
         try:
             await message.author.timeout(
-                timedelta(minutes=config.MUTE_MINUTES),
+                timedelta(minutes=minutes),
                 reason=f"Auto-mute: {reason}",
             )
         except discord.Forbidden:
@@ -88,7 +98,7 @@ class Moderation(commands.Cog):
 
         # Also try to let the user know why they were muted.
         await self._warn(message, result)
-        return "muted", f"{config.MUTE_MINUTES} min timeout"
+        return "muted", f"{minutes} min timeout"
 
     async def _log(
         self, message: discord.Message, result: dict, action: str, detail: str
